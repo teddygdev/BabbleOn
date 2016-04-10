@@ -18,20 +18,22 @@ import javax.crypto.IllegalBlockSizeException;
  */
 public class MsgMessage extends BabbleOnMessage{
 
-    private static final int MAX_MSG_LEN = 500;
+    private static final int MAX_MSG_LEN = 15;
+    private static final int MAX_MSGS = 500;
+
     private static final int HEADER_LEN = HEADER.length()+Byte.BYTES+Long.BYTES;
-    
+
     private int senderUsernameLength;
     private String senderUsername;
     private int receiverUsernameLength;
-    String receiverUsername;
-    int messageLengthEncrypted;
-    String message;
-    long messageLenDecrypted;
-    int messageNumber;
-    int totalMessages;
-    long timestamp;
-
+    private String receiverUsername;
+    private int messageLengthEncrypted;
+    private String message;
+    private long messageLenDecrypted;
+    private int messageNumber;
+    private int totalMessages;
+    private long timestamp;
+    private byte[] encrypted;
     
     public MsgMessage( 
         int senderUsernameLength,
@@ -42,7 +44,8 @@ public class MsgMessage extends BabbleOnMessage{
 	long messageLength,
 	int messageNumber,
 	int totalMessages,
-	long timestamp) throws BabbleException {
+	long timestamp, 
+        Cipher encrypt) throws BabbleException {
         
         super((byte)MessageType.MsgMessage.ordinal(),
                 senderUsernameLength+receiverUsernameLength
@@ -87,11 +90,15 @@ public class MsgMessage extends BabbleOnMessage{
         
         this.message = message;
         
+        this.encrypted = doEncryption(encrypt, message);
+        
         this.messageLenDecrypted = messageLength;
         
         if(messageLength != this.messageLenDecrypted){
             throw new BabbleException("Message Hashes do not match");
         }
+        
+        this.messageLengthEncrypted = encrypted.length;
         
         this.messageNumber = messageNumber;
         
@@ -174,10 +181,13 @@ public class MsgMessage extends BabbleOnMessage{
         }
         
         this.messageLenDecrypted = readLong(ds);
-        if((long)message.length() != this.messageLenDecrypted || messageLenDecrypted > MAX_MSG_LEN){
-            throw new BabbleException("Message lengths do not match");
+         System.out.println("msglen:"+(long)message.length());
+         System.out.println("msglendec:"+this.messageLenDecrypted);
+         System.out.println("maxmsglen:"+MAX_MSG_LEN);
+        if((long)message.length() != this.messageLenDecrypted || messageLenDecrypted > MAX_MSG_LEN*MAX_MSGS){
+            throw new BabbleException("Message lengths do not match: " + message);
         }
-        
+
         this.messageNumber = readInt(ds, Integer.MAX_VALUE);
         
         this.totalMessages = readInt(ds, Integer.MAX_VALUE);
@@ -199,14 +209,13 @@ public class MsgMessage extends BabbleOnMessage{
         }
     }
         
-    public void encode(OutputStream out, Cipher encrypt) throws BabbleException {
+    @Override
+    public void encode(OutputStream out) throws BabbleException {
         if(null == out){
             throw new NullPointerException();
         }
         try{
             DataOutputStream ds = new DataOutputStream(out);
-            
-            byte[] encrypted = doEncryption(encrypt, message);
 
             ds.writeInt(senderUsernameLength);
             ds.write(senderUsername.getBytes(CHSET));
@@ -254,7 +263,7 @@ public class MsgMessage extends BabbleOnMessage{
         long ret = 0;
         for(MsgMessage m : newMessages){
             ret = ret+m.senderUsernameLength+m.receiverUsernameLength
-                +m.messageLengthEncrypted+Long.BYTES*2+Integer.BYTES*5; 
+                +m.encrypted.length+Long.BYTES*2+Integer.BYTES*5; 
         }
         
         return ret;
@@ -264,16 +273,16 @@ public class MsgMessage extends BabbleOnMessage{
         byte[] b = new byte[0];
         try{
             int write;
-            byte[] chunk = (message + message).getBytes(CHSET); 
+            byte[] chunk = (message).getBytes(CHSET); 
             
             //loop though all chunks before final chunk
-            for(write = 0; write < chunk.length/2-cipher.getBlockSize(); write+=cipher.getBlockSize()){  
+            for(write = 0; write < chunk.length-cipher.getBlockSize(); write+=cipher.getBlockSize()){  
                 cipher.update(chunk, write, 
                         write+cipher.getBlockSize());
             }
             //get final chunk of encrypted data
-            if(write < chunk.length/2){
-                b = cipher.doFinal(chunk, write, chunk.length/2);
+            if(write < chunk.length){
+                b = cipher.doFinal(chunk, write, chunk.length);
             }    
         } catch (IllegalBlockSizeException | BadPaddingException | IOException ex) {
                     throw new BabbleException("Bad stuffs happening in messages");        

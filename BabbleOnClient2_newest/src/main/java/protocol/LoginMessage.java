@@ -285,7 +285,6 @@ public class LoginMessage extends BabbleOnMessage{
             String justKey = key.substring(KEY_FILE_HEADER.length(), key.length()-KEY_FILE_FOOTER.length());
 
             ByteBuffer keyBytes = new BASE64Decoder().decodeBufferToByteBuffer(justKey);
-            System.out.println("Key: " + key + "\nDecoded: " + Arrays.toString(keyBytes.array()));
             X509EncodedKeySpec keySpec = new X509EncodedKeySpec(keyBytes.array());
             KeyFactory kf = KeyFactory.getInstance(ALGORITHM);
             RSAPublicKey pk = (RSAPublicKey) kf.generatePublic(keySpec);

@@ -91,7 +91,7 @@ public class PollMessage extends BabbleOnMessage{
             ds.writeLong(messageLen);
             ds.writeInt(usernameLength);
             ds.write(username.getBytes(CHSET));
-            ds.writeLong(currentTimeMillis());
+            ds.writeLong(timestamp);
         }catch (IOException e) {
             throw new BabbleException("Mag Exception: " + e.getMessage(), e);
         }

@@ -65,7 +65,7 @@ public class BabbleOnClient extends JFrame{
     //New line for displaying messages
     private static final String NEWLINE = System.getProperty("line.separator");
     //Maximum length of a single message
-    private static final int MAX_MSG_LEN = 16;
+    private static final int MAX_MSG_LEN = 15;
     //Maximum length of message list
     private static final int MAX_MSGS = 500;
     //Maximum length for the username
@@ -228,7 +228,7 @@ public class BabbleOnClient extends JFrame{
             try {
                 if(null == cipherSymmetricOut){
                     cipherSymmetricOut = Cipher.getInstance(SYM_ALGORITHM_CRYPT);
-                    cipherSymmetricOut.init(Cipher.ENCRYPT_MODE, symmetricKey);
+                    cipherSymmetricOut.init(Cipher.ENCRYPT_MODE, symmetricKey, new IvParameterSpec(SYM_IV_STRING.getBytes(BabbleOnMessage.CHSET)));
                 }
                 
                 int messages = (int)Math.ceil(message.length()/(double)MAX_MSG_LEN);
@@ -244,10 +244,10 @@ public class BabbleOnClient extends JFrame{
                         int messageLen = message.length()-(i-1)*MAX_MSG_LEN < MAX_MSG_LEN ? message.length()%MAX_MSG_LEN : MAX_MSG_LEN;
                         int max = messageLen < MAX_MSG_LEN ? message.length() : MAX_MSG_LEN*i;
                         String messageBit = message.substring((i-1)*MAX_MSG_LEN, max);
-                        
+
                         outMsgs.add(new MsgMessage(username.length(), username, recipientUsername.length(),
-                            recipientUsername, messageBit, messageLen, 
-                            i, messages, currentTimeMillis()));
+                                recipientUsername, messageBit, messageLen,
+                                i, messages, currentTimeMillis(), cipherSymmetricOut));
                         
                     }
                 }
@@ -255,8 +255,8 @@ public class BabbleOnClient extends JFrame{
                 if(!outMsgs.isEmpty()){
                     PollResponseMessage sendMsg = new PollResponseMessage(username.length(),
                             username, outMsgs.size(), 1, 1, outMsgs);
+                    sendMsg.encode(out, cipherSymmetricOut);
 
-                    sendMsg.encode(out,cipherSymmetricOut);
 
                     outgoingMessageBox.setText("");
                     outMsgs.clear();
@@ -270,7 +270,11 @@ public class BabbleOnClient extends JFrame{
                 }
               } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException ex) {
                   Logger.getLogger(BabbleOnClient.class.getName()).log(Level.SEVERE, ex.getMessage());
-              }
+              } catch (InvalidAlgorithmParameterException e) {
+                e.printStackTrace();
+            } catch (UnsupportedEncodingException e) {
+                e.printStackTrace();
+            }
           }
           else if(outgoingMessageBox.getText().length() < (MAX_MSG_LEN*MAX_MSGS)){
               JOptionPane.showMessageDialog(outgoingMessageBox,
@@ -367,8 +371,6 @@ public class BabbleOnClient extends JFrame{
                 l.setEncodedKey(encrypted);
                 l.encode(out);
 
-                System.out.println("encKey len:  " + encrypted.length);
-                System.out.println("enckey: "+Arrays.toString(encrypted));
 
                 hasExchangedKeys = true;
             }
@@ -519,8 +521,7 @@ public class BabbleOnClient extends JFrame{
         messages.append("From: ").append(resp.getUsername()).append(NEWLINE);
         
         for(MsgMessage msg : resp.getNewMessages()){
-            System.out.println("msgs: " + msg.getMessage());
-            if(msg.getReceiverUsername().equals(username) 
+            if(msg.getReceiverUsername().equals(username)
                     && msg.getSenderUsername().equals(resp.getUsername())){
                 messages.append(msg.getMessage());
                 if(msg.getMessageNumber() == resp.getMessageListSize()){
@@ -590,11 +591,10 @@ public class BabbleOnClient extends JFrame{
 
            if(null == cipherSymmetricOut){
                cipherSymmetricOut = Cipher.getInstance(SYM_ALGORITHM_CRYPT);
-               cipherSymmetricOut.init(Cipher.ENCRYPT_MODE, symmetricKey);
+               cipherSymmetricOut.init(Cipher.ENCRYPT_MODE, symmetricKey, new IvParameterSpec(SYM_IV_STRING.getBytes(BabbleOnMessage.CHSET)));
            }
 
            cipherSymmetricIn = Cipher.getInstance(SYM_ALGORITHM_CRYPT);
-           //System.out.println(Arrays.toString(cipherSymmetricOut.getIV()));
            cipherSymmetricIn.init(Cipher.DECRYPT_MODE, symmetricKey, new IvParameterSpec(SYM_IV_STRING.getBytes(BabbleOnMessage.CHSET)));
            incomingMessageBox.setVisible(true);
            JPanel content = new JPanel();

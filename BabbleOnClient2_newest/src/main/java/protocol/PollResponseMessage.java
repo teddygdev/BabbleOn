@@ -138,7 +138,7 @@ public class PollResponseMessage extends BabbleOnMessage{
             ds.writeInt(totalLists);
             ds.writeInt(messageListSize);
             for(MsgMessage msg: newMessages){
-                msg.encode(out, msgOut);
+                msg.encode(out);
             }
         }catch (IOException e) {
             throw new BabbleException("MsgException: " + e.getMessage(), e);

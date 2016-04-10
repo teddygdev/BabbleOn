@@ -72,7 +72,6 @@ public class BabbleOnMessage {
                 DataInputStream ds = new DataInputStream(in);
                 try {
                     String strg = readStr(ds, HEADER.length());
-                    System.out.println(strg);
                     if(strg.isEmpty()){
                         throw new NullPointerException("No header");
                     }

@@ -18,7 +18,7 @@ class PollThread extends Thread{
     public static final int WAIT_TIME = 5000;
     
     private BabbleOnClient frame;
-    private long lastPollTime = 0;
+    private long lastPollTime = currentTimeMillis();
     
     @Override
     public void run(){
