@@ -191,7 +191,7 @@ FIND_PACKAGE_HANDLE_STANDARD_ARGS (CryptoPP REQUIRED_VARS CRYPTOPP_ROOT_DIR
 ###################################################################################
 
 
-set(SOURCE_FILES MockServer.cpp PracticalSocket.cpp PracticalSocket.h MockServer.cpp SurveyCommon.h SurveyCommon.cpp Sha256Lib.h
+set(SOURCE_FILES MockServer.cpp PracticalSocket.cpp PracticalSocket.h MockServer.cpp Sha256Lib.h
         protocol/SPChatMessage.h protocol/SPChatMessage.cpp protocol/SPChatLogin.cpp protocol/SPChatLogin.h protocol/SPChatChallenge.cpp
         protocol/SPChatChallenge.h protocol/SPChatResponse.cpp protocol/SPChatResponse.h protocol/SPChatACK.h protocol/SPChatACK.cpp
         protocol/SPChatException.h protocol/SPChatMsgMessage.cpp protocol/SPChatMsgMessage.h protocol/SPChatPoll.cpp protocol/SPChatPoll.h

@@ -1,7 +1,5 @@
 #include <iostream>
-#include <fstream>
 #include "PracticalSocket.h"
-#include "SurveyCommon.h"
 #include "Sha256Lib.h"
 #include "protocol/SPChatMessage.h"
 #include "protocol/SPChatChallenge.h"
@@ -15,9 +13,7 @@
 #include "db/include/cppconn/driver.h"
 #include "db/include/cppconn/resultset.h"
 
-#include "db/include/cppconn/driver.h"
-#include "db/include/cppconn/exception.h"
-#include "db/include/cppconn/resultset.h"
+
 #include "db/include/cppconn/statement.h"
 #include "db/include/cppconn/prepared_statement.h"
 #include "protocol/SPChatMsgMessage.h"
@@ -43,7 +39,6 @@ const string DBPASS = "root";
 const string DBIP = "tcp://127.0.0.1:3306";
 const in_port_t serverPort = 54321;
 
-string keyString = "";
 string ivString = "QtIkUCmeW0XTCybi";
 int keysize=16;
 
@@ -58,7 +53,6 @@ static void *clientConnectStart(void *arg);
 
 
 int main(int argc, char *argv[]) {
-
     try {
         // Make a socket to listen for SurveyClient connections.
         TCPServerSocket servSock(serverPort);
@@ -104,25 +98,35 @@ int main(int argc, char *argv[]) {
 
 
         for (;;) {    // Repeatedly accept connections for the chat server
-            TCPSocket *sock = servSock.accept();
+            try {
+                TCPSocket *sock = servSock.accept();
 
 
 
-            pthread_t newThread;              // Give chat in a separate thread
-            if (pthread_create(&newThread, NULL, clientConnectStart, sock) != 0) {
-                cerr << "Can't create new thread" << endl;
-                delete sock;
+                pthread_t newThread;              // Give chat in a separate thread
+                if (pthread_create(&newThread, NULL, clientConnectStart, sock) != 0) {
+                    cerr << "Can't create new thread" << endl;
+                    delete sock;
+                }
+            } catch (...) {
+                cout<<"first failsafe. try loop for sock accept"<<endl;
             }
+
         }
     } catch (SocketException &e) {
-        cerr << e.what() << endl;           // Report errors to the console.
+        cout << e.what() << endl;           // Report errors to the console.
+    } catch (...) {
+        cout<<"bad error. hope we can recover"<<endl;
     }
+
 
     return 0;
 }
 
 static void *clientConnectStart(void *arg) {
     TCPSocket *sock = (TCPSocket *)arg;   // Argument is really a socket
+    string keyString = "";
+    long endTime = time(0) + 100;
 
     try {
         //get message
@@ -198,8 +202,14 @@ static void *clientConnectStart(void *arg) {
                 //to add
                 //no such user
                 //to add
+                //cout<<"password:"<<password<<endl;
                 if (password=="") {
+                    SPChatACK spChatACKBad(SPChatACK::DEFAULT_ERROR, SPChatACK::SERVER);
+                    vector<unsigned char> encodingACKBad;
+                    spChatACKBad.encode(&encodingACKBad);
+                    sock->send(encodingACKBad.data(), spChatACKBad.getTotalMsgLength());
                     delete sock;
+                    return NULL;
                 }
                 //mysql
                 //start genereating our side of hash
@@ -234,7 +244,12 @@ static void *clientConnectStart(void *arg) {
                 //no such user/pass combo
                 //to add
                 else {
+//                    SPChatACK spChatACKBad(SPChatACK::DEFAULT_ERROR, SPChatACK::SERVER);
+//                    vector<unsigned char> encodingACKBad;
+//                    spChatACKBad.encode(&encodingACKBad);
+//                    sock->send(encodingACKBad.data(), spChatACKBad.getTotalMsgLength());
                     delete sock;
+                    return NULL;
                 }
                 //continue with second part of authentication
                 //get next msg
@@ -302,33 +317,67 @@ static void *clientConnectStart(void *arg) {
                         }
                         //not proper symm key lenght
                         else {
+//                            SPChatACK spChatACKBad(SPChatACK::DEFAULT_ERROR, SPChatACK::SERVER);
+//                            vector<unsigned char> encodingACKBad;
+//                            spChatACKBad.encode(&encodingACKBad);
+//                            sock->send(encodingACKBad.data(), spChatACKBad.getTotalMsgLength());
                             delete sock;
+                            return NULL;
                         }
                         //end of login operations
 
 
                     }
                     else {
+//                        SPChatACK spChatACKBad(SPChatACK::DEFAULT_ERROR, SPChatACK::SERVER);
+//                        vector<unsigned char> encodingACKBad;
+//                        spChatACKBad.encode(&encodingACKBad);
+//                        sock->send(encodingACKBad.data(), spChatACKBad.getTotalMsgLength());
                         delete sock;
+                        return NULL;
                     }
 
                 }
                 else {
+//                    SPChatACK spChatACKBad(SPChatACK::DEFAULT_ERROR, SPChatACK::SERVER);
+//                    vector<unsigned char> encodingACKBad;
+//                    spChatACKBad.encode(&encodingACKBad);
+//                    sock->send(encodingACKBad.data(), spChatACKBad.getTotalMsgLength());
                     delete sock;
+                    return NULL;
                 }
 
             }
             else {
+//                SPChatACK spChatACKBad(SPChatACK::DEFAULT_ERROR, SPChatACK::SERVER);
+//                vector<unsigned char> encodingACKBad;
+//                spChatACKBad.encode(&encodingACKBad);
+//                sock->send(encodingACKBad.data(), spChatACKBad.getTotalMsgLength());
                 delete sock;
+                return NULL;
             }
         }
         else {
+//            SPChatACK spChatACKBad(SPChatACK::DEFAULT_ERROR, SPChatACK::SERVER);
+//            vector<unsigned char> encodingACKBad;
+//            spChatACKBad.encode(&encodingACKBad);
+//            sock->send(encodingACKBad.data(), spChatACKBad.getTotalMsgLength());
             delete sock;
+            return NULL;
             //not following protocol
         }
 
 
         for (;;) {
+            if (endTime<time(0)) {
+//                SPChatACK spChatACKBad(SPChatACK::DEFAULT_ERROR, SPChatACK::SERVER);
+//                vector<unsigned char> encodingACKBad;
+//                spChatACKBad.encode(&encodingACKBad);
+//                sock->send(encodingACKBad.data(), spChatACKBad.getTotalMsgLength());
+                delete sock;
+                return NULL;
+
+            }
             cout << "-----new msg----" << endl;
             SPChatMessage *msgs = SPChatMessage::decode(sock);
             cout << "Type: " << hex << unsigned(msgs->getType()) << dec << endl;
@@ -336,8 +385,8 @@ static void *clientConnectStart(void *arg) {
             if(msgs->getType() == SPChatPoll::SPCHATPOLL_TYPE) {
                 SPChatPoll *newPoll = (SPChatPoll*) msgs;
 
-                cout<<"username: "<<newPoll->getUsername()<<endl;
-                cout<<"time: "<<newPoll->getTime()<<endl;
+                //cout<<"username: "<<newPoll->getUsername()<<endl;
+                //cout<<"time: "<<newPoll->getTime()<<endl;
 
                 string username = newPoll->getUsername();
                 long time = newPoll->getTime();
@@ -371,15 +420,19 @@ static void *clientConnectStart(void *arg) {
                             "as y ON x.reciever_id = y.user_id "
                             "INNER JOIN (SELECT user_id, email FROM login)"
                             "as z ON x.sender_id = z.user_id "
-                            "WHERE UNIX_TIMESTAMP(timestamp) > '";
-                    query+="1428420682";
+                            "WHERE UNIX_TIMESTAMP(timestamp) > ";
+                    //query+="1458432000";
                     long stringTime=newPoll->getTime();
+                    stringTime /=1000;
+                    //stringTime -=6;
+                    //stringTime -=5000;
                     string finalStringTime;
                     stringstream tempStream;
                     tempStream << stringTime;
                     finalStringTime = tempStream.str();
-                    //query+= finalStringTime;
-                    query+="' AND y.email = '";
+                    cout<<"time: "<<finalStringTime<<endl;
+                    query+= finalStringTime;
+                    query+=" AND y.email = '";
                     //query+="jonhand93@gmail.com";
                     query+=newPoll->getUsername();
                     query+="'";
@@ -420,45 +473,181 @@ static void *clientConnectStart(void *arg) {
                 //char const *key = keyString.c_str();
                 //cout<<"key length:"<<keyString.length()<<endl;
                 //char const *ivToUse = ivString.c_str();
-                string plain = "hi there brandy I really hope you are getting this cool!";
-                string encodedWithSym;
-                aesEncrypt(plain, keyString, ivString, encodedWithSym);
 
-                //<encode msg>
-                string sender = "Server";
-                string rec = "test@test.com";
-                vector<SPChatMsgMessage> msgList;
-                msgList.push_back(SPChatMsgMessage(sender, rec, encodedWithSym, plain.length(),
-                        1, 1, newPoll->getTime()));
+                for (int i=0; i<messageDb.size(); i++) {
+                    string plain = messageDb[i];
+                    string encodedWithSym;
+                    aesEncrypt(plain, keyString, ivString, encodedWithSym);
+                    string sender = senderDb[i];
+                    string rec = newPoll->getUsername();
+                    vector<SPChatMsgMessage> msgList;
+                    msgList.push_back(SPChatMsgMessage(sender, rec, encodedWithSym, plain.length(),
+                                                       1, 1, newPoll->getTime()));
+                    SPChatPollResponse pollRspns = SPChatPollResponse(sender, msgList, 1, 1);
 
-                SPChatPollResponse pollRspns = SPChatPollResponse("Server", msgList, 1, 1);
+                    vector<unsigned char> encodingPR;
+                    pollRspns.encode(&encodingPR);
 
-                vector<unsigned char> encodingPR;
-                pollRspns.encode(&encodingPR);
-                sock->send(encodingPR.data(), pollRspns.getTotalMsgLength());
+                    sock->send(encodingPR.data(), pollRspns.getTotalMsgLength());
+                }
+
 
             }
             //client sends poll response (sending msgs)
             if(msgs->getType() == SPChatPollResponse::SPCHATPOLLRESPONSE_TYPE) {
-                cout<<"WE ARE HERE>>>>>>>>>>"<<endl;
+                string receivedDecryptedMessage="";
                 SPChatPollResponse *pollRspns = (SPChatPollResponse*) msgs;
                 for(int i = 0; i < pollRspns->getMsgList().size(); i++){
                     //each msg in the poll response
-                    //pollRspns->getMsgList()[i].
+                    string decrypted;
+                    aesDecrypt(pollRspns->getMsgList()[i].getMessage(), keyString, ivString, decrypted);
+                    receivedDecryptedMessage+=decrypted;
                 }
+                //cout<<"chatmsg: "<<receivedDecryptedMessage<<endl;
+                //store in db
+                try {
+                    sql::Driver *driver;
+                    sql::Connection *con;
+                    sql::Statement *stmt;
+                    sql::ResultSet *res;
+
+                    /* Create a connection */
+                    driver = get_driver_instance();
+                    con = driver->connect(DBIP, DBUSER, DBPASS);
+                    /* Connect to the MySQL test database */
+                    //con->setSchema("chatserver");
+                    stmt = con->createStatement();
+                    stmt->execute("USE chatserver;");
+                    string prequery ="INSERT INTO messages VALUES ('','";
+                    prequery+=receivedDecryptedMessage;
+                    prequery+="');";
+                    stmt->execute(prequery);
+                    //string receiver = pollRspns->getUsername();
+                    /*
+                    string query = "INSERT INTO transactions SELECT z.user_id, y.user_id, x.message_id, from_unixtime('";
+                    long stringTime=pollRspns->getMsgList()[0].getTime();
+                    stringTime /=1000;
+                    string finalStringTime;
+                    stringstream tempStream;
+                    tempStream << stringTime;
+                    finalStringTime = tempStream.str();
+                    //query+= finalStringTime;
+                    query+="1460164489";
+                    query+="') time, '' autoinc FROM messages INNER JOIN (SELECT message_id, reciever_id, sender_id FROM transactions) ";
+                    query+="as x ON messages.message_id = x.message_id INNER JOIN (SELECT user_id, email FROM login) as y ON x.reciever_id = y.user_id ";
+                    query+="INNER JOIN (SELECT user_id, email FROM login) as z ON x.sender_id = z.user_id WHERE y.email = '";
+                    //query+=pollRspns->getMsgList()[0].getReceiver();
+                    query+="test@test.com";
+                    query+="' AND z.email='";
+                    //query+=pollRspns->getMsgList()[0].getSender();
+                    query+="test2@test.com";
+                    query+="' and messages.text='";
+                    //query+=receivedDecryptedMessage;
+                    query+="TEST MESSAGE";
+                    query+="';";
+                     */
+                    ///
+                    string sender_id="";
+                    string received_id="";
+                    string message_id="";
+                    string query = "SELECT user_id FROM login WHERE email = '";
+                    query+=pollRspns->getMsgList()[0].getSender();
+                    query+="'";
+                    res = stmt->executeQuery(query);
+                    while (res->next()) {
+                        //set flag to true
+                        sender_id= res->getString(1);
+                        //cout<<password<<endl;
+                    }
+                    cout<<"senderid:"<<sender_id<<endl;
+                    query = "SELECT user_id FROM login WHERE email = '";
+                    query+=pollRspns->getMsgList()[0].getReceiver();
+                    query+="'";
+                    res = stmt->executeQuery(query);
+                    while (res->next()) {
+                        //set flag to true
+                        received_id= res->getString(1);
+                        //cout<<password<<endl;
+                    }
+                    cout<<"receivedid:"<<received_id<<endl;
+
+
+                    query = "SELECT message_id FROM messages WHERE text = '";
+                    query+=receivedDecryptedMessage;
+                    query+="'";
+                    res = stmt->executeQuery(query);
+                    while (res->next()) {
+                        //set flag to true
+                        message_id= res->getString(1);
+                        //cout<<password<<endl;
+                    }
+                    cout<<"msgid:"<<message_id<<endl;
+                    long stringTime=pollRspns->getMsgList()[0].getTime();
+                    stringTime /=1000;
+                    string finalStringTime;
+                    stringstream tempStream;
+                    tempStream << stringTime;
+                    finalStringTime = tempStream.str();
+                    cout<<"savetime:"<<finalStringTime<<endl;
+                    query="INSERT INTO transactions VALUES ('";
+                    query+=sender_id;
+                    query+="','";
+                    query+=received_id;
+                    query+="','";
+                    query+=message_id;
+                    query+="', from_unixtime('";
+                    query+=finalStringTime;
+                    query+="'),' ');";
+
+                    stmt->execute(query);
+
+
+                    delete res;
+                    delete stmt;
+                    delete con;
+
+                } catch (sql::SQLException &e) {
+                    cout <<"problem getting username/password combo";
+                    cout << "# ERR: SQLException in " << __FILE__;
+                    cout << "(" << __FUNCTION__ << ") on line " << __LINE__ << endl;
+                    cout << "# ERR: " << e.what();
+                    cout << " (MySQL error code: " << e.getErrorCode();
+                    cout << ", SQLState: " << e.getSQLState() << " )" << endl;
+                }
+
+
+
+                //end store in db
             }
+
 
         }
 
 
     } catch (SPChatException &e) {
         cout<<"exception:"<<e.what()<<endl;
+//        SPChatACK spChatACKBad(SPChatACK::DEFAULT_ERROR, SPChatACK::SERVER);
+//        vector<unsigned char> encodingACKBad;
+//        spChatACKBad.encode(&encodingACKBad);
+//        sock->send(encodingACKBad.data(), spChatACKBad.getTotalMsgLength());
     } catch (runtime_error e) {
         cerr << e.what() << endl;           // Report errors to the console.
+//        SPChatACK spChatACKBad(SPChatACK::DEFAULT_ERROR, SPChatACK::SERVER);
+//        vector<unsigned char> encodingACKBad;
+//        spChatACKBad.encode(&encodingACKBad);
+//        sock->send(encodingACKBad.data(), spChatACKBad.getTotalMsgLength());
     }catch( const CryptoPP::Exception& e )  {
         cerr << e.what() << endl;
+//        SPChatACK spChatACKBad(SPChatACK::DEFAULT_ERROR, SPChatACK::SERVER);
+//        vector<unsigned char> encodingACKBad;
+//        spChatACKBad.encode(&encodingACKBad);
+//        sock->send(encodingACKBad.data(), spChatACKBad.getTotalMsgLength());
     } catch (int e) {
         cout<<"error: "<<e<<endl;
+//        SPChatACK spChatACKBad(SPChatACK::DEFAULT_ERROR, SPChatACK::SERVER);
+//        vector<unsigned char> encodingACKBad;
+//        spChatACKBad.encode(&encodingACKBad);
+//        sock->send(encodingACKBad.data(), spChatACKBad.getTotalMsgLength());
 
     }
 
@@ -487,6 +676,7 @@ void aesEncrypt(string plain, string inputKey, string inputIv, string &cipher) {
     catch( const CryptoPP::Exception& e )
     {
         cerr << e.what() << endl;
+
     }
 }
 

@@ -17,10 +17,13 @@ SPChatPollResponse::SPChatPollResponse(string username,
 
 SPChatPollResponse::SPChatPollResponse(unsigned char* buf, int len)
 : SPChatMessage(SPCHATPOLLRESPONSE_TYPE){
+    //cout<<"SPCHATRESPONSE<<<<<<<<<<<<"<<endl;
     int pos = PAYLOAD_POSITION;
     setUsername(decodeString(buf,len,&pos));
     setListNum(decodeInt(buf,len,&pos));
+    //cout<<listNum<<endl;
     setTotalList(decodeInt(buf,len,&pos));
+    //cout<<totalList<<endl;
     decodeMsgList(buf,len,&pos);
 }
 

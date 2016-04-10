@@ -178,7 +178,14 @@ long SPChatMessage::decodeLong(unsigned char* buf, int len, int* pos){
 
 
 int SPChatMessage::decodeInt(unsigned char* buf, int len, int* pos){
-	if(INT_SIZE > len - *pos ){ throw SPChatException(TOO_SHORT_EXCEPTION); }
+	//cout<<"intsize"<<INT_SIZE<<endl;
+	//cout<<"len"<<len<<endl;
+	//cout<<"pos"<<*pos<<endl;
+
+	if(INT_SIZE > len - *pos ){
+		cout<<"spchatline182"<<endl;
+		throw SPChatException(TOO_SHORT_EXCEPTION);
+	}
 
 	int n = 0;
 	if(!isLittleEndian()){
