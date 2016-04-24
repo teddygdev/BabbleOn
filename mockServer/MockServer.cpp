@@ -9,13 +9,14 @@
 #include <openssl/rand.h>
 #include "protocol/SPChatException.h"
 #include "protocol/SPChatPoll.h"
-#include "db/include/cppconn/exception.h"
-#include "db/include/cppconn/driver.h"
-#include "db/include/cppconn/resultset.h"
 
+#include "cppconn/exception.h"
+#include "cppconn/driver.h"
+#include "cppconn/resultset.h"
+#include "mysql_connection.h"
+#include "cppconn/statement.h"
+#include "cppconn/prepared_statement.h"
 
-#include "db/include/cppconn/statement.h"
-#include "db/include/cppconn/prepared_statement.h"
 #include "protocol/SPChatMsgMessage.h"
 #include "protocol/SPChatPollResponse.h"
 
@@ -61,19 +62,22 @@ int main(int argc, char *argv[]) {
         try {
             sql::Driver *driver;
             sql::Connection *con;
-            sql::Statement *stmt;
+            sql::PreparedStatement *stmt;
             sql::ResultSet *res;
 
             /* Create a connection */
             driver = get_driver_instance();
             con = driver->connect(DBIP, DBUSER, DBPASS);
+            //cout<<driver->getMajorVersion()<<" "<<driver->getMinorVersion()<<endl;
             /* Connect to the MySQL test database */
-            //con->setSchema("chatserver");
+            con->setSchema("chatserver");
 
-            stmt = con->createStatement();
-            stmt->execute("USE chatserver");
+            //stmt = con->createStatement();
+            //stmt=con->prepareStatement("USE chatserver");
+            //stmt->execute();
             //res = stmt->executeQuery("SELECT * FROM login WHERE email = 'jonhand93@gmail.com' AND password = 'derp'");
-            res = stmt->executeQuery("SELECT password FROM login WHERE email = 'jonhand93@gmail.com'");
+            stmt = con->prepareStatement("SELECT password FROM login WHERE email = 'jonhand93@gmail.com'");
+            res = stmt->executeQuery();
             //res = stmt->executeQuery("SELECT id, label FROM test ORDER BY id ASC");
             while (res->next()) {
                 //set flag to true
@@ -126,7 +130,8 @@ int main(int argc, char *argv[]) {
 static void *clientConnectStart(void *arg) {
     TCPSocket *sock = (TCPSocket *)arg;   // Argument is really a socket
     string keyString = "";
-    long endTime = time(0) + 100;
+    long endTime = time(0) + 1000;
+    string originalUser="";
 
     try {
         //get message
@@ -142,6 +147,7 @@ static void *clientConnectStart(void *arg) {
             }
             SPChatLogin *login = (SPChatLogin *) msg;
             string username = login->getUsername();
+            originalUser=username;
             string password = "";
             //send challenge
             SPChatChallenge spChatChallenge(theChallenge);
@@ -164,32 +170,44 @@ static void *clientConnectStart(void *arg) {
                     sql::Driver *driver;
                     sql::Connection *con;
                     sql::Statement *stmt;
+                    sql::PreparedStatement *prep_stmt;
                     sql::ResultSet *res;
 
                     /* Create a connection */
                     driver = get_driver_instance();
                     con = driver->connect(DBIP, DBUSER, DBPASS);
                     /* Connect to the MySQL test database */
-                    //con->setSchema("chatserver");
+                    con->setSchema("chatserver");
 
-                    stmt = con->createStatement();
-                    stmt->execute("USE chatserver");
-                    //res = stmt->executeQuery("SELECT * FROM login WHERE email = 'jonhand93@gmail.com' AND password = 'derp'");
-                    string query = "SELECT password FROM login WHERE email = '";
-                    query+=username;
-                    query+="'";
-                    //cout<<query<<endl;
-                    res = stmt->executeQuery(query);
-                    //res = stmt->executeQuery("SELECT password FROM login WHERE email = '"<<username<<"' AND password = 'derp'");
-                    //res = stmt->executeQuery("SELECT id, label FROM test ORDER BY id ASC");
+//                    stmt = con->createStatement();
+//                    //stmt->execute("USE chatserver");
+//                    //res = stmt->executeQuery("SELECT * FROM login WHERE email = 'jonhand93@gmail.com' AND password = 'derp'");
+//                    string query = "SELECT password FROM login WHERE email = '";
+//                    query+=username;
+//                    query+="'";
+//                    //cout<<query<<endl;
+//                    res = stmt->executeQuery(query);
+//                    //res = stmt->executeQuery("SELECT password FROM login WHERE email = '"<<username<<"' AND password = 'derp'");
+//                    //res = stmt->executeQuery("SELECT id, label FROM test ORDER BY id ASC");
+//                    while (res->next()) {
+//                        //set flag to true
+//                        password= res->getString(1);
+//                        //cout<<password<<endl;
+//                    }
+                    //
+                    prep_stmt = con->prepareStatement("SELECT password FROM login WHERE email = ?");
+
+                    prep_stmt->setString(1, username);
+
+                    res=prep_stmt->executeQuery();
+
                     while (res->next()) {
-                        //set flag to true
                         password= res->getString(1);
-                        //cout<<password<<endl;
                     }
                     delete res;
                     delete stmt;
                     delete con;
+                    delete prep_stmt;
 
                 } catch (sql::SQLException &e) {
                     cout <<"problem getting username/password combo";
@@ -272,7 +290,7 @@ static void *clientConnectStart(void *arg) {
                     StringSink ss(saved);
                     PEM_Save(ss, publicKey);
 
-                    cout<<saved<<endl;
+                    //cout<<saved<<endl;
                     unsigned char *val=new unsigned char[saved.length()+1];
                     strcpy((char *)val,saved.c_str());
                     ////
@@ -389,6 +407,11 @@ static void *clientConnectStart(void *arg) {
                 //cout<<"time: "<<newPoll->getTime()<<endl;
 
                 string username = newPoll->getUsername();
+                //test if original guy sent the message
+                if (username!=originalUser) {
+                    delete sock;
+                    return NULL;
+                }
                 long time = newPoll->getTime();
                 //real
                 //mysql
@@ -400,16 +423,17 @@ static void *clientConnectStart(void *arg) {
                     sql::Driver *driver;
                     sql::Connection *con;
                     sql::Statement *stmt;
+                    sql::PreparedStatement *prep_stmt;
                     sql::ResultSet *res;
 
                     /* Create a connection */
                     driver = get_driver_instance();
                     con = driver->connect(DBIP, DBUSER, DBPASS);
                     /* Connect to the MySQL test database */
-                    //con->setSchema("chatserver");
+                    con->setSchema("chatserver");
 
                     stmt = con->createStatement();
-                    stmt->execute("USE chatserver");
+                    //stmt->execute("USE chatserver");
                     //res = stmt->executeQuery("SELECT * FROM login WHERE email = 'jonhand93@gmail.com' AND password = 'derp'");
                 //string query = "SELECT password FROM login WHERE email = '";
                     //string query = "SELECT * FROM messages INNER JOIN (SELECT message_id, reciever_id, sender_id, timestamp FROM transactions) as x ON messages.message_id = x.message_id INNER JOIN (SELECT user_id, email FROM login) as y ON x.reciever_id = y.user_id WHERE UNIX_TIMESTAMP(timestamp) > '";
@@ -430,29 +454,45 @@ static void *clientConnectStart(void *arg) {
                     stringstream tempStream;
                     tempStream << stringTime;
                     finalStringTime = tempStream.str();
-                    cout<<"time: "<<finalStringTime<<endl;
-                    query+= finalStringTime;
-                    query+=" AND y.email = '";
-                    //query+="jonhand93@gmail.com";
-                    query+=newPoll->getUsername();
-                    query+="'";
-                //query+=username;
-                //query+="'";
-                    //cout<<query<<endl;
-                    res = stmt->executeQuery(query);
-                    //res = stmt->executeQuery("SELECT password FROM login WHERE email = '"<<username<<"' AND password = 'derp'");
-                    //res = stmt->executeQuery("SELECT id, label FROM test ORDER BY id ASC");
+//                    cout<<"time: "<<finalStringTime<<endl;
+//                    query+= finalStringTime;
+//                    query+=" AND y.email = '";
+//                    //query+="jonhand93@gmail.com";
+//                    query+=newPoll->getUsername();
+//                    query+="'";
+//                //query+=username;
+//                //query+="'";
+//                    //cout<<query<<endl;
+//                    res = stmt->executeQuery(query);
+//                    //res = stmt->executeQuery("SELECT password FROM login WHERE email = '"<<username<<"' AND password = 'derp'");
+//                    //res = stmt->executeQuery("SELECT id, label FROM test ORDER BY id ASC");
+//                    while (res->next()) {
+//                        //set flag to true
+//                    //password= res->getString(1);
+//                        //cout<<"while:"<<res->getString(1)<<res->getString(3)<<UnixTimeFromMysqlString(res->getString(4))<<endl;
+//                        messageDb.push_back(res->getString(1));
+//                        senderDb.push_back(res->getString(3));
+//                        timeDb.push_back(res->getString(4));
+//                    }
+
+                    prep_stmt = con->prepareStatement(query + "? AND y.email = ?");
+
+                    prep_stmt->setString(1, finalStringTime);
+                    prep_stmt->setString(2, newPoll->getUsername());
+
+
+                    res=prep_stmt->executeQuery();
+
                     while (res->next()) {
-                        //set flag to true
-                    //password= res->getString(1);
-                        //cout<<"while:"<<res->getString(1)<<res->getString(3)<<UnixTimeFromMysqlString(res->getString(4))<<endl;
                         messageDb.push_back(res->getString(1));
                         senderDb.push_back(res->getString(3));
                         timeDb.push_back(res->getString(4));
                     }
+
                     delete res;
                     delete stmt;
                     delete con;
+                    delete prep_stmt;
 
                 } catch (sql::SQLException &e) {
                     cout <<"problem getting username/password combo";
@@ -510,18 +550,36 @@ static void *clientConnectStart(void *arg) {
                     sql::Connection *con;
                     sql::Statement *stmt;
                     sql::ResultSet *res;
+                    sql::PreparedStatement  *prep_stmt;
+
 
                     /* Create a connection */
                     driver = get_driver_instance();
                     con = driver->connect(DBIP, DBUSER, DBPASS);
+                    con->setSchema("chatserver");
                     /* Connect to the MySQL test database */
                     //con->setSchema("chatserver");
                     stmt = con->createStatement();
-                    stmt->execute("USE chatserver;");
-                    string prequery ="INSERT INTO messages VALUES ('','";
-                    prequery+=receivedDecryptedMessage;
-                    prequery+="');";
-                    stmt->execute(prequery);
+                    //stmt->execute("USE chatserver;");
+                    //prep_stmt->execute("USE chatserver;");
+                    //string prequery ="INSERT INTO messages VALUES ('','";
+                    //prequery+=receivedDecryptedMessage;
+                    //prequery+="');";
+                    //stmt->execute(prequery);
+                    //prep_stmt->
+                    //prep_stmt
+                    //prep_stmt = con->prepareStatement("SELECT * from chatserver.login;");
+                    //prep_stmt -> execute();
+
+                    prep_stmt = con->prepareStatement("INSERT INTO messages(text) VALUES (?)");
+                    //prep_stmt->setString(1, "");
+
+                    prep_stmt->setString(1, receivedDecryptedMessage);
+
+                    prep_stmt->execute();
+
+
+
                     //string receiver = pollRspns->getUsername();
                     /*
                     string query = "INSERT INTO transactions SELECT z.user_id, y.user_id, x.message_id, from_unixtime('";
@@ -550,64 +608,103 @@ static void *clientConnectStart(void *arg) {
                     string sender_id="";
                     string received_id="";
                     string message_id="";
-                    string query = "SELECT user_id FROM login WHERE email = '";
-                    query+=pollRspns->getMsgList()[0].getSender();
-                    query+="'";
-                    res = stmt->executeQuery(query);
+                    string query;
+//                    string query = "SELECT user_id FROM login WHERE email = '";
+//                    query+=pollRspns->getMsgList()[0].getSender();
+//                    query+="'";
+//                    res = stmt->executeQuery(query);
+                    prep_stmt = con->prepareStatement("SELECT user_id FROM login WHERE email=?");
+                    //prep_stmt->setString(1, "");
+
+                    prep_stmt->setString(1, pollRspns->getMsgList()[0].getSender());
+
+                    res=prep_stmt->executeQuery();
+
                     while (res->next()) {
                         //set flag to true
                         sender_id= res->getString(1);
                         //cout<<password<<endl;
                     }
-                    cout<<"senderid:"<<sender_id<<endl;
-                    query = "SELECT user_id FROM login WHERE email = '";
-                    query+=pollRspns->getMsgList()[0].getReceiver();
-                    query+="'";
-                    res = stmt->executeQuery(query);
+
+//                    cout<<"senderid:"<<sender_id<<endl;
+//                    query = "SELECT user_id FROM login WHERE email = '";
+//                    query+=pollRspns->getMsgList()[0].getReceiver();
+//                    query+="'";
+//                    res = stmt->executeQuery(query);
+//                    while (res->next()) {
+//                        //set flag to true
+//                        received_id= res->getString(1);
+//                        //cout<<password<<endl;
+//                    }
+                    prep_stmt = con->prepareStatement("SELECT user_id FROM login WHERE email=?");
+
+                    prep_stmt->setString(1, pollRspns->getMsgList()[0].getReceiver());
+
+                    res=prep_stmt->executeQuery();
+
                     while (res->next()) {
-                        //set flag to true
                         received_id= res->getString(1);
-                        //cout<<password<<endl;
                     }
-                    cout<<"receivedid:"<<received_id<<endl;
+                    //cout<<"receivedid:"<<received_id<<endl;
 
 
-                    query = "SELECT message_id FROM messages WHERE text = '";
-                    query+=receivedDecryptedMessage;
-                    query+="'";
-                    res = stmt->executeQuery(query);
+//                    query = "SELECT message_id FROM messages WHERE text = '";
+//                    query+=receivedDecryptedMessage;
+//                    query+="'";
+//                    res = stmt->executeQuery(query);
+//                    while (res->next()) {
+//                        //set flag to true
+//                        message_id= res->getString(1);
+//                        //cout<<password<<endl;
+//                    }
+                    prep_stmt = con->prepareStatement("SELECT message_id FROM messages WHERE text = ?");
+
+                    prep_stmt->setString(1, receivedDecryptedMessage);
+
+                    res=prep_stmt->executeQuery();
+
                     while (res->next()) {
-                        //set flag to true
                         message_id= res->getString(1);
-                        //cout<<password<<endl;
                     }
-                    cout<<"msgid:"<<message_id<<endl;
+                    //cout<<"receivedid:"<<received_id<<endl;
+                    //cout<<"msgid:"<<message_id<<endl;
                     long stringTime=pollRspns->getMsgList()[0].getTime();
                     stringTime /=1000;
                     string finalStringTime;
                     stringstream tempStream;
                     tempStream << stringTime;
                     finalStringTime = tempStream.str();
-                    cout<<"savetime:"<<finalStringTime<<endl;
-                    query="INSERT INTO transactions VALUES ('";
-                    query+=sender_id;
-                    query+="','";
-                    query+=received_id;
-                    query+="','";
-                    query+=message_id;
-                    query+="', from_unixtime('";
-                    query+=finalStringTime;
-                    query+="'),' ');";
+                    //cout<<"savetime:"<<finalStringTime<<endl;
+//                    query="INSERT INTO transactions VALUES ('";
+//                    query+=sender_id;
+//                    query+="','";
+//                    query+=received_id;
+//                    query+="','";
+//                    query+=message_id;
+//                    query+="', from_unixtime('";
+//                    query+=finalStringTime;
+//                    query+="'),' ');";
+//
+//                    stmt->execute(query);
 
-                    stmt->execute(query);
+                    prep_stmt = con->prepareStatement("INSERT INTO transactions VALUES (?,?,?,from_unixtime(?), DEFAULT)");
+
+                    prep_stmt->setString(1, sender_id);
+                    prep_stmt->setString(2, received_id);
+                    prep_stmt->setString(3, message_id);
+                    prep_stmt->setString(4, finalStringTime);
+
+
+                    prep_stmt->execute();
 
 
                     delete res;
                     delete stmt;
                     delete con;
+                    delete prep_stmt;
 
                 } catch (sql::SQLException &e) {
-                    cout <<"problem getting username/password combo";
+                    cout <<"message saving/getting error";
                     cout << "# ERR: SQLException in " << __FILE__;
                     cout << "(" << __FUNCTION__ << ") on line " << __LINE__ << endl;
                     cout << "# ERR: " << e.what();

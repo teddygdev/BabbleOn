@@ -3,7 +3,7 @@ project(mockServer)
 find_package(OpenSSL REQUIRED)
 
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -pthread -fpermissive")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -pthread -fpermissive -lmysqlcppconn")
 #-I/usr/local/ssl/include -I/usr/local/ssl/include/openssl -lcrypto
 #INCLUDE_DIRECTORIES(openssl/)
 #include_directories(/usr/local/ssl/include)
@@ -196,7 +196,7 @@ set(SOURCE_FILES MockServer.cpp PracticalSocket.cpp PracticalSocket.h MockServer
         protocol/SPChatChallenge.h protocol/SPChatResponse.cpp protocol/SPChatResponse.h protocol/SPChatACK.h protocol/SPChatACK.cpp
         protocol/SPChatException.h protocol/SPChatMsgMessage.cpp protocol/SPChatMsgMessage.h protocol/SPChatPoll.cpp protocol/SPChatPoll.h
         protocol/SPChatPollResponse.cpp protocol/SPChatPollResponse.h db/include/mysql_connection.h db/include/cppconn/driver.h db/include/cppconn/exception.h db/include/cppconn/resultset.h
-        db/include/cppconn/statement.h protocol/SPChatException.cpp db/include/mysql_driver.h db/include/mysql_error.h
-        db/include/cppconn/prepared_statement.h)
+        db/include/cppconn/statement.h db/include/cppconn/prepared_statement.h protocol/SPChatException.cpp db/include/mysql_driver.h db/include/mysql_error.h
+        )
 add_executable(mockServer ${SOURCE_FILES})
 target_link_libraries( mockServer PRIVATE ${OPENSSL_LIBRARIES} ${MYSQLCONNECTORCPP_LIBRARY} ${CRYPTOPP_LIBRARIES})
