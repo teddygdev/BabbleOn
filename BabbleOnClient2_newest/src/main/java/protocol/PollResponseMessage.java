@@ -75,7 +75,7 @@ public class PollResponseMessage extends BabbleOnMessage{
     public PollResponseMessage(InputStream in, Cipher decrypt) throws BabbleException {
         super(in, true);
 
-        checkType(MessageType.PollMessage);
+        checkType(MessageType.PollResponseMessage);
         
         DataInputStream ds = new DataInputStream(in);
         
@@ -122,7 +122,7 @@ public class PollResponseMessage extends BabbleOnMessage{
         }
     }
     
-    public void encode(OutputStream out, Cipher msgOut) throws BabbleException {
+    public void encode(OutputStream out) throws BabbleException {
         if(null == out){
             throw new NullPointerException();
         }

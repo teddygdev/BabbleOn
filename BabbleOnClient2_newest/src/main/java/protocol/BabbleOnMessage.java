@@ -72,6 +72,7 @@ public class BabbleOnMessage {
                 DataInputStream ds = new DataInputStream(in);
                 try {
                     String strg = readStr(ds, HEADER.length());
+                    System.out.println(strg);
                     if(strg.isEmpty()){
                         throw new NullPointerException("No header");
                     }
@@ -197,7 +198,7 @@ public class BabbleOnMessage {
      */
     protected final boolean checkType(MessageType m) throws BabbleException{
         boolean r = true;
-        if(messageType != m.ordinal()){
+        if(messageType != (byte)m.ordinal()){
             messageType = (byte)m.ordinal();
             r = false;
         }

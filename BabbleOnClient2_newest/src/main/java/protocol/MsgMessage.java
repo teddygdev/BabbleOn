@@ -20,9 +20,8 @@ public class MsgMessage extends BabbleOnMessage{
 
     private static final int MAX_MSG_LEN = 15;
     private static final int MAX_MSGS = 500;
-
     private static final int HEADER_LEN = HEADER.length()+Byte.BYTES+Long.BYTES;
-
+    
     private int senderUsernameLength;
     private String senderUsername;
     private int receiverUsernameLength;
@@ -76,8 +75,6 @@ public class MsgMessage extends BabbleOnMessage{
         }
         
         this.receiverUsername = receiverUsername;
-        
-     //   this.messageLengthEncrypted = messageLength;
         
         if(0 > messageLength || MAX_MSG_LEN < messageLength){
             throw new BabbleException("Invalid messageLength");
@@ -181,13 +178,10 @@ public class MsgMessage extends BabbleOnMessage{
         }
         
         this.messageLenDecrypted = readLong(ds);
-         System.out.println("msglen:"+(long)message.length());
-         System.out.println("msglendec:"+this.messageLenDecrypted);
-         System.out.println("maxmsglen:"+MAX_MSG_LEN);
         if((long)message.length() != this.messageLenDecrypted || messageLenDecrypted > MAX_MSG_LEN*MAX_MSGS){
-            throw new BabbleException("Message lengths do not match: " + message);
+            throw new BabbleException("Message lengths do not match: " + message.length() + " : " + messageLenDecrypted);
         }
-
+        
         this.messageNumber = readInt(ds, Integer.MAX_VALUE);
         
         this.totalMessages = readInt(ds, Integer.MAX_VALUE);

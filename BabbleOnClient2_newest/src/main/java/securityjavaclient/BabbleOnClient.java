@@ -5,8 +5,13 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.io.*;
-
+import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
 import static java.lang.System.currentTimeMillis;
 import java.net.Socket;
 import java.nio.ByteBuffer;
@@ -24,6 +29,7 @@ import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.crypto.Cipher;
@@ -83,9 +89,8 @@ public class BabbleOnClient extends JFrame{
     //Client's username
     private String username;
     //Username for a message/message set
-    private String recipientUsername;
-    //Last time polling server for new messages
-    private long lastPollTime = 0;
+    private String[] recipientUsernameList;
+    private List<String> recipientUsernames = new ArrayList<>();
     //Input store
     private byte[] input;
     
@@ -131,7 +136,7 @@ public class BabbleOnClient extends JFrame{
             throw new IllegalArgumentException("Parameter(s): <keyFileName> <Server> [<Port>]");
         }
         String server = args[1];
-        int servPort = (args.length == 3) ? Integer.parseInt(args[2]) : 7;
+        int servPort = (args.length == 3) ? Integer.parseInt(args[2]) : 12345;
         String filename = args[0];
         BabbleOnClient frame = new BabbleOnClient(server, servPort, filename);
         
@@ -165,11 +170,21 @@ public class BabbleOnClient extends JFrame{
         @Override
         public void actionPerformed(ActionEvent e) {
                
-            recipientUsername = usernameText.getText().trim();
+            recipientUsernameList = usernameText.getText().split(",");
+            recipientUsernames.clear();
             
-            if(!recipientUsername.matches(REGEX)){
-                recipientUsername = "";
+            for(int i = 0; i < recipientUsernameList.length; i++){
+                String recipient = recipientUsernameList[i].trim();
+                if(!recipient.isEmpty() && recipient.matches(REGEX)){
+                    recipientUsernames.add(recipient);
+                }
+            }
+            
+            if(recipientUsernames.isEmpty()){
+                recipientUsernameList = new String[0];
                 usernameText.setText("");
+                JOptionPane.showMessageDialog(loginPane,
+                            "Please enter a valid Recipient Username");
             }
         }
         
@@ -223,58 +238,57 @@ public class BabbleOnClient extends JFrame{
         public void actionPerformed(ActionEvent event) {
           if (outgoingMessageBox.getText().length() > 0 
                   && outgoingMessageBox.getText().length() < (MAX_MSG_LEN*MAX_MSGS)) {
-            String message = outgoingMessageBox.getText();
+              StringBuilder recipients = new StringBuilder();
+              if(recipientUsernames.size() > 1){
+                recipients.append("**Group Message**\nTo: ");
+                
+                for(String name : recipientUsernames){
+                    recipients.append(name).append("\n");
+                }                
+              }
+              
+              String message = recipients.toString()+outgoingMessageBox.getText();
             
             try {
                 if(null == cipherSymmetricOut){
                     cipherSymmetricOut = Cipher.getInstance(SYM_ALGORITHM_CRYPT);
-                    cipherSymmetricOut.init(Cipher.ENCRYPT_MODE, symmetricKey, new IvParameterSpec(SYM_IV_STRING.getBytes(BabbleOnMessage.CHSET)));
+                    cipherSymmetricOut.init(Cipher.ENCRYPT_MODE, symmetricKey, 
+                            new IvParameterSpec(SYM_IV_STRING.getBytes(BabbleOnMessage.CHSET)));
                 }
                 
-                int messages = (int)Math.ceil(message.length()/(double)MAX_MSG_LEN);
-                for(int i = 1; i <= messages; i++){
-                    if(null == recipientUsername && !usernameText.getText().isEmpty()){
-                        recipientUsername = usernameText.getText();
-                    }
-                    else if(null == recipientUsername){
-                        JOptionPane.showMessageDialog(loginPane,
-                            "Please enter a Recipient Username");
-                    }
-                    else{
-                        int messageLen = message.length()-(i-1)*MAX_MSG_LEN < MAX_MSG_LEN ? message.length()%MAX_MSG_LEN : MAX_MSG_LEN;
+                for(String recipientUsername : recipientUsernames){
+                    int messages = (int)Math.ceil(message.length()/(double)MAX_MSG_LEN);
+                    for(int i = 1; i <= messages; i++){
+                        int messageLen = message.length()-(i-1)*MAX_MSG_LEN < MAX_MSG_LEN 
+                                ? message.length()%MAX_MSG_LEN : MAX_MSG_LEN;
                         int max = messageLen < MAX_MSG_LEN ? message.length() : MAX_MSG_LEN*i;
                         String messageBit = message.substring((i-1)*MAX_MSG_LEN, max);
-
+                        
                         outMsgs.add(new MsgMessage(username.length(), username, recipientUsername.length(),
-                                recipientUsername, messageBit, messageLen,
-                                i, messages, currentTimeMillis(), cipherSymmetricOut));
+                            recipientUsername, messageBit, messageLen, 
+                            i, messages, currentTimeMillis(), cipherSymmetricOut));
                         
                     }
-                }
                 
-                if(!outMsgs.isEmpty()){
-                    PollResponseMessage sendMsg = new PollResponseMessage(username.length(),
-                            username, outMsgs.size(), 1, 1, outMsgs);
-                    sendMsg.encode(out, cipherSymmetricOut);
+                    if(!outMsgs.isEmpty()){
+                        PollResponseMessage sendMsg = new PollResponseMessage(username.length(),
+                                username, outMsgs.size(), 1, 1, outMsgs);
 
+                        sendMsg.encode(out);
 
-                    outgoingMessageBox.setText("");
+                    }
                     outMsgs.clear();
                 }
+                
+                outgoingMessageBox.setText("");
+                
             } catch (BabbleException ex) {
                   Logger.getLogger(BabbleOnClient.class.getName()).log(Level.SEVERE, null, ex);
-                try {
-                    out.close();
-                } catch (IOException ex1) {
-                    Logger.getLogger(BabbleOnClient.class.getName()).log(Level.SEVERE, null, ex1);
-                }
-              } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException ex) {
-                  Logger.getLogger(BabbleOnClient.class.getName()).log(Level.SEVERE, ex.getMessage());
-              } catch (InvalidAlgorithmParameterException e) {
-                e.printStackTrace();
-            } catch (UnsupportedEncodingException e) {
-                e.printStackTrace();
-            }
+                
+            } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException 
+                    | InvalidAlgorithmParameterException | UnsupportedEncodingException ex) {
+                System.err.println("Problem sending message: " + ex.getMessage());
+            } 
           }
           else if(outgoingMessageBox.getText().length() < (MAX_MSG_LEN*MAX_MSGS)){
               JOptionPane.showMessageDialog(outgoingMessageBox,
@@ -289,14 +303,15 @@ public class BabbleOnClient extends JFrame{
           try {
             socket.close();
           } catch (Exception exception) {
+              System.err.println("Couldn't close connection: " + exception.getMessage());
           }
           System.exit(0);
         }
       });
     } catch (IOException exception) {
-      
-    }   catch (NoSuchAlgorithmException | InvalidAlgorithmParameterException ex) {
-            Logger.getLogger(BabbleOnClient.class.getName()).log(Level.SEVERE, ex.getMessage());
+        System.err.println(exception.getMessage());  
+    } catch (NoSuchAlgorithmException | InvalidAlgorithmParameterException ex) {
+        Logger.getLogger(BabbleOnClient.class.getName()).log(Level.SEVERE, ex.getMessage());
     }
   }
 
@@ -370,8 +385,7 @@ public class BabbleOnClient extends JFrame{
                 LoginMessage l = new LoginMessage(username.length(),username,KeyType.SYMMETRIC, null);
                 l.setEncodedKey(encrypted);
                 l.encode(out);
-
-
+                
                 hasExchangedKeys = true;
             }
             
@@ -389,7 +403,9 @@ public class BabbleOnClient extends JFrame{
      */
     public boolean handleACK() throws BabbleException {
         ACKMessage ack = new ACKMessage(in);
-        if(!authenticated && Errors.PASSWORD_AUTH.name().equals(ack.getErr())&& 
+        //If the user has been authenticated and they were not already authenticated
+        //but the password has been authenticated, send the server your public key
+        if(!authenticated && Errors.PASSWORD_AUTH == ack.getErr()&& 
                 ACKMessage.SERVER == ack.getSender()){
             authenticated = true;
             try{        
@@ -409,33 +425,51 @@ public class BabbleOnClient extends JFrame{
         
             if(null != out){
                 try {
-                        loginAttempt = new LoginMessage(username.length(), username, 
+                    loginAttempt = new LoginMessage(username.length(), username, 
                                KeyType.ASYMMETRIC, localPublicKey);
 
-                        loginAttempt.encode(out);
+                    loginAttempt.encode(out);
                 } catch (BabbleException ex) {
                     Logger.getLogger(PasswordPane.class.getName()).log(Level.SEVERE, null, ex);
                 } 
             }
         
-        }else if(!Errors.SUCCESS.name().equals(ack.getErr()) && ACKMessage.SERVER == ack.getSender()){
-            Logger.getLogger(BabbleOnClient.class.getName()).log(Level.SEVERE, ack.getErr());
+        }else if(Errors.SUCCESS != ack.getErr() && ACKMessage.SERVER == ack.getSender()){
+            //If the ack message indicates a problem; not success or password auth
             
-            if(Errors.INVALID_USERNAME_PASSWORD.name().equals(ack.getErr())){
-                JOptionPane.showMessageDialog(loginPane,
+            switch(ack.getErr()){
+                case INVALID_USERNAME_PASSWORD:
+                    JOptionPane.showMessageDialog(loginPane,
                     "Incorrect Username/Password");
+                    break;
+                case INVALID_MSG_TYPE:
+                    System.err.println("Unexpected message received");
+                    break;
+                case FORMATTING_ERROR:
+                    System.err.println("Message formatting error");
+                    break;
+                case INVALID_RECIPIENT:
+                    JOptionPane.showMessageDialog(loginPane,
+                    "Recipient name invalid, please try again");
+                    break;
+                case DEFAULT_ERROR:
+                    System.err.println("Generic error with communication");
+                    break;
+                default:
+                    System.err.println("What happened. ACK Error issues");
             }
         }
         else if(ACKMessage.CLIENT == ack.getSender()){
-            Logger.getLogger(BabbleOnClient.class.getName()).log(Level.SEVERE, "Unexpected client error message");
+            System.err.println("Unexpected client error message received");
         }
         else{
-            if(Errors.SUCCESS.name().equals(ack.getErr()) && hasExchangedKeys){
+            if(Errors.SUCCESS == ack.getErr() && hasExchangedKeys){
+                //If key exchange success is indicated, start polling for messages
                 poller = new PollThread();
                 poller.setFrame(this);
                 poller.start();
             }
-            if(Errors.INVALID_RECIPIENT.name().equals(ack.getErr())){
+            if(Errors.INVALID_RECIPIENT == ack.getErr()){
                 JOptionPane.showMessageDialog(loginPane,
                     "Please enter a valid recipient username");
             }
@@ -509,11 +543,9 @@ public class BabbleOnClient extends JFrame{
                         //new IvParameterSpec(cipherSymmetricOut.getIV()));
                         new IvParameterSpec(SYM_IV_STRING.getBytes(BabbleOnMessage.CHSET)));
             } catch (NoSuchAlgorithmException | NoSuchPaddingException 
-                    | InvalidKeyException | InvalidAlgorithmParameterException ex) {
+                    | InvalidKeyException | InvalidAlgorithmParameterException | UnsupportedEncodingException ex) {
                 throw new BabbleException("Problems with decrypt cipher: ", ex);
-            } catch (UnsupportedEncodingException ex) {
-                throw new BabbleException("Problems with decrypt (encoding) cipher: ", ex);
-            }
+            } 
         }
         
         PollResponseMessage resp = new PollResponseMessage(in, cipherSymmetricIn);
@@ -521,7 +553,7 @@ public class BabbleOnClient extends JFrame{
         messages.append("From: ").append(resp.getUsername()).append(NEWLINE);
         
         for(MsgMessage msg : resp.getNewMessages()){
-            if(msg.getReceiverUsername().equals(username)
+            if(msg.getReceiverUsername().equals(username) 
                     && msg.getSenderUsername().equals(resp.getUsername())){
                 messages.append(msg.getMessage());
                 if(msg.getMessageNumber() == resp.getMessageListSize()){
@@ -541,7 +573,12 @@ public class BabbleOnClient extends JFrame{
     public void pollServer(long timestamp) throws BabbleException {
         if(null != username){
             PollMessage poll = new PollMessage(username.length(), username, timestamp);
-            poll.encode(out);
+            if(null != out){
+                poll.encode(out);
+            }
+            else{
+                poller.setServerConnected(false);
+            }
         }
     }
 
@@ -581,21 +618,27 @@ public class BabbleOnClient extends JFrame{
 //        }
     }
     
+    /**
+     * Updates window displays for password success
+     * @throws BabbleException if problem with encryption protocols
+     */
     private void setPanes() throws BabbleException{
         try{        
             JOptionPane.showMessageDialog(loginPane,
-                    "Success! You typed the right password.");
+                   "Success! You typed the right password.");
 
            loginPane.setVisible(false);
            this.remove(loginPane);
 
            if(null == cipherSymmetricOut){
                cipherSymmetricOut = Cipher.getInstance(SYM_ALGORITHM_CRYPT);
-               cipherSymmetricOut.init(Cipher.ENCRYPT_MODE, symmetricKey, new IvParameterSpec(SYM_IV_STRING.getBytes(BabbleOnMessage.CHSET)));
+               cipherSymmetricOut.init(Cipher.ENCRYPT_MODE, symmetricKey,
+                       new IvParameterSpec(SYM_IV_STRING.getBytes(BabbleOnMessage.CHSET)));
            }
 
            cipherSymmetricIn = Cipher.getInstance(SYM_ALGORITHM_CRYPT);
-           cipherSymmetricIn.init(Cipher.DECRYPT_MODE, symmetricKey, new IvParameterSpec(SYM_IV_STRING.getBytes(BabbleOnMessage.CHSET)));
+           cipherSymmetricIn.init(Cipher.DECRYPT_MODE, symmetricKey, 
+                   new IvParameterSpec(SYM_IV_STRING.getBytes(BabbleOnMessage.CHSET)));
            incomingMessageBox.setVisible(true);
            JPanel content = new JPanel();
            content.setLayout(new GridLayout(4,1));
@@ -611,11 +654,9 @@ public class BabbleOnClient extends JFrame{
            frameContent.add(scrollPane, "2");
 
            frameContent.add(content, "1");
-       } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | InvalidAlgorithmParameterException ex) {
+       } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException 
+               | InvalidAlgorithmParameterException | UnsupportedEncodingException ex) {
            throw new BabbleException("Problem establising panes " + ex.getMessage());
-       } catch (UnsupportedEncodingException ex) {
-            throw new BabbleException("Problem establising panes (encoding) " + ex.getMessage());
-        }
-    }
-    
+       } 
+    }  
 }

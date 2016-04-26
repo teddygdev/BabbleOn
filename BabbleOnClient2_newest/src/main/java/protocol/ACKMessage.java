@@ -96,8 +96,8 @@ public class ACKMessage extends BabbleOnMessage{
         }
     }
     
-    public String getErr(){
-        return error;
+    public Errors getErr(){
+        return Errors.valueOf(error);
     }
     
     public void setSender(int s){

@@ -19,10 +19,11 @@ class PollThread extends Thread{
     
     private BabbleOnClient frame;
     private long lastPollTime = currentTimeMillis();
+    private boolean serverConnected = true;
     
     @Override
     public void run(){
-        while(true){
+        while(serverConnected){
             if(currentTimeMillis() > lastPollTime+WAIT_TIME){
                 try {
                     frame.pollServer(lastPollTime);
@@ -41,5 +42,9 @@ class PollThread extends Thread{
     
     public void setLastPollTime(long time){
         lastPollTime = time;
+    }
+    
+    public void setServerConnected(boolean conn){
+        serverConnected = conn;
     }
 }
