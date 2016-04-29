@@ -543,6 +543,12 @@ static void *clientConnectStart(void *arg) {
                     aesDecrypt(pollRspns->getMsgList()[i].getMessage(), keyString, ivString, decrypted);
                     receivedDecryptedMessage+=decrypted;
                 }
+                string username = pollRspns->getMsgList()[0].getSender();
+                //test if original guy sent the message
+                if (username!=originalUser) {
+                    delete sock;
+                    return NULL;
+                }
                 //cout<<"chatmsg: "<<receivedDecryptedMessage<<endl;
                 //store in db
                 try {
